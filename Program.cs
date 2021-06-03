@@ -1,9 +1,14 @@
 ﻿using System;
 using System.IO;
 using System.Text;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Threading.Tasks;
+using HtmlAgilityPack;
+using System.Threading;
 namespace wdbconv
 {
-    class Program
+    public class Program
     {
 
         struct WDBHeader
@@ -24,78 +29,82 @@ namespace wdbconv
             }
         }
 
-
-        class QuestInfo
+        [Serializable]
+        public class QuestInfo
         {
-            uint questId;
-            uint entryLength;
+            public QuestInfo()
+            {
+
+            }
+            public uint questId;
+            public uint entryLength;
             ////
-            int unk0;
-            int unk1;
-            int level;
-            int area;
-            int infoId;
-            int unk2;
-            int unk3;
-            int unk4;
-            int unk5;
-            int nextQuestID;
-            int coins;
-            int substitudeExp;
-            int spellReward;
-            int startingItemID;
-            int questFlags;
-            int givenItem1;
-            int givenItem1Amount;
-            int givenItem2;
-            int givenItem2Amount;
-            int givenItem3;
-            int givenItem3Amount;
-            int givenItem4;
-            int givenItem4Amount;
-            int choiceItem1;
-            int choiceItem1Amount;
-            int choiceItem2;
-            int choiceItem2Amount;
-            int choiceItem3;
-            int choiceItem3Amount;
-            int choiceItem4;
-            int choiceItem4Amount;
-            int choiceItem5;
-            int choiceItem5Amount;
-            int choiceItem6;
-            int choiceItem6Amount;
-            int unk6;
-            int unk7;
-            int unk8;
-            int unk9;
+            public int unk0;
+            public int unk1;
+            public int level;
+            public int area;
+            public int infoId;
+            public int unk2;
+            public int unk3;
+            public int unk4;
+            public int unk5;
+            public int nextQuestID;
+            public int coins;
+            public int substitudeExp;
+            public int spellReward;
+            public int startingItemID;
+            public int questFlags;
+            public int givenItem1;
+            public int givenItem1Amount;
+            public int givenItem2;
+            public int givenItem2Amount;
+            public int givenItem3;
+            public int givenItem3Amount;
+            public int givenItem4;
+            public int givenItem4Amount;
+            public int choiceItem1;
+            public int choiceItem1Amount;
+            public int choiceItem2;
+            public int choiceItem2Amount;
+            public int choiceItem3;
+            public int choiceItem3Amount;
+            public int choiceItem4;
+            public int choiceItem4Amount;
+            public int choiceItem5;
+            public int choiceItem5Amount;
+            public int choiceItem6;
+            public int choiceItem6Amount;
+            public int unk6;
+            public int unk7;
+            public int unk8;
+            public int unk9;
             ///
-            string name;
-            string description;
-            string detail;
-            string subdescription;
+            public string name;
+            public string description;
+            public string detail;
+            public string subdescription;
             ///
-            int killCreature1;
-            int killCreature1Amount;
-            int collectItem1;
-            int collectItem1Amount;
-            int killCreature2;
-            int killCreature2Amount;
-            int collectItem2;
-            int collectItem2Amount;
-            int killCreature3;
-            int killCreature3Amount;
-            int collectItem3;
-            int collectItem3Amount;
-            int killCreature4;
-            int killCreature4Amount;
-            int collectItem4;
-            int collectItem4Amount;
+            public int killCreature1;
+            public int killCreature1Amount;
+            public int collectItem1;
+            public int collectItem1Amount;
+            public int killCreature2;
+            public int killCreature2Amount;
+            public int collectItem2;
+            public int collectItem2Amount;
+            public int killCreature3;
+            public int killCreature3Amount;
+            public int collectItem3;
+            public int collectItem3Amount;
+            public int killCreature4;
+            public int killCreature4Amount;
+            public int collectItem4;
+            public int collectItem4Amount;
             ///
-            string objective1;
-            string objective2;
-            string objective3;
-            string objective4;
+            public string objective1;
+            public string objective2;
+            public string objective3;
+            public string objective4;
 
             public QuestInfo(string str)
             {
@@ -557,11 +566,89 @@ namespace wdbconv
             }
         }
 
+
+        static bool isTaskIng = false;
+        static int currentIdx = 0;
+
+        static async void questReq(QuestInfo quest)
+        {
+            isTaskIng = true;
+            var nameIsEng = checkIsEnglish(quest.name);
+            var descIsEng = checkIsEnglish(quest.description);
+            var detailIsEng = checkIsEnglish(quest.detail);
+            if (nameIsEng && descIsEng && detailIsEng)
+            {
+                var bd = new UriBuilder("http://cn.60wdb.com/quest/" + quest.questId);
+                try
+                {
+                    var a = await ParseStringFromUrl(bd.Uri);
+                    quest.name = trimRetReplaceBr(a.Item1);
+                    if (a.Item2.Length > 0) quest.description = trimRetReplaceBr(a.Item2);
+                    if (a.Item3.Length > 0) quest.detail = trimRetReplaceBr(a.Item3);
+                    Console.WriteLine("current quest result:{0}", quest.name);
+                }
+                catch (System.Exception e)
+                {
+                    Console.WriteLine(e.Message);
+                }
+            }
+            else
+            {
+                Console.WriteLine("quest {0} not english skip", quest.name);
+            }
+
+            isTaskIng = false;
+        }
+
+        static bool checkIsEnglish(string str)
+        {
+            for (int i = 0; i < str.Length && i < 10; i++)
+            {
+                if (Encoding.Default.GetByteCount(str[i].ToString()) > 1) return false;
+            }
+            return true;
+        }
+
+        static string trimRetReplaceBr(string tmp)
+        {
+            return tmp.Replace("\n", "").Replace("<br>", "$B$B").Replace("(玩家)", "$N");
+        }
+
+        static void autoTransAndWrite(List<QuestInfo> data)
+        {
+            while (currentIdx < data.Count)
+            {
+                if (!isTaskIng)
+                {
+                    Console.WriteLine("current quest id:{0}", data[currentIdx].questId);
+                    questReq(data[currentIdx]);
+                    currentIdx++;
+                }
+                else
+                {
+                    Thread.Sleep(100);
+                }
+            }
+
+            while (isTaskIng)
+            {
+                if (!isTaskIng) break;
+                else Thread.Sleep(100);
+            }
+        }
+
         static void Main(string[] args)
         {
+
+            // questReq(747);
+            // while (true)
+            // {
+
+            // }
+            // return;
             if (args.Length != 1)
             {
-                Console.WriteLine("use: wdbconv.exe aaa.wdb/bbb.tsv");
+                Console.WriteLine("use: wdbconv.exe aaa.wdb/bbb.xml");
                 return;
             }
 
@@ -574,7 +661,7 @@ namespace wdbconv
 
 
             bool isWdb = path.EndsWith("wdb");
-            var outPath = path + (isWdb ? ".tsv" : ".wdb");
+            var outPath = path + (isWdb ? ".xml" : ".wdb");
 
             var rfs = new FileStream(path, FileMode.Open);
             var wfs = new FileStream(outPath, FileMode.Create);
@@ -582,22 +669,50 @@ namespace wdbconv
             {
                 var br = new BinaryReader(rfs);
                 var header = new WDBHeader(br);
-                var sw = new StreamWriter(wfs);
+                // var sw = new StreamWriter(wfs);
                 Console.WriteLine("sign:{0} version:{1} language:{2}", new String(header.signatrue), header.version, new String(header.language));
-                sw.WriteLine(QuestInfo.getTSVTitle());
+                // sw.WriteLine(QuestInfo.getTSVTitle());
+
+                var list = new List<QuestInfo>();
                 while (br.BaseStream.Length - br.BaseStream.Position > 20)
                 {
                     var quest = new QuestInfo(br);
-                    sw.WriteLine(quest.ToString());
+                    list.Add(quest);
+                    // sw.WriteLine(quest.ToString());
                 }
 
-                sw.Flush();
-                sw.Close();
+                autoTransAndWrite(list);
+
+                System.Xml.Serialization.XmlSerializer writer = new System.Xml.Serialization.XmlSerializer(typeof(List<QuestInfo>));
+                writer.Serialize(wfs, list);
+                // sw.Flush();
+                // sw.Close();
                 br.Close();
+
+
+                var bfs = new FileStream(path.Replace(".wdb", "_cn.wdb"), FileMode.Create);
+                var wdbBw = new BinaryWriter(bfs);
+                wdbBw.Write(0x57515354);
+                wdbBw.Write(0x16f3);
+                wdbBw.Write(0x7a68434e);
+                wdbBw.Write(0x18dc);
+                wdbBw.Write(0x3);
+
+                foreach (var item in list)
+                {
+                    item.writeBin(wdbBw);
+                }
+
+                wdbBw.Write(0);
+                wdbBw.Write(0);
+                wdbBw.Flush();
+                wdbBw.Close();
+                bfs.Close();
             }
             else
             {
-                var tsvSr = new StreamReader(rfs);
+                var xmlSr = new System.Xml.Serialization.XmlSerializer(typeof(List<QuestInfo>));
+                var list = (List<QuestInfo>)xmlSr.Deserialize(rfs);
                 var wdbBw = new BinaryWriter(wfs);
                 wdbBw.Write(0x57515354);
                 wdbBw.Write(0x16f3);
@@ -605,6 +720,12 @@ namespace wdbconv
                 wdbBw.Write(0x18dc);
                 wdbBw.Write(0x3);
 
+                foreach (var item in list)
+                {
+                    item.writeBin(wdbBw);
+                }
+
+                /*
                 tsvSr.ReadLine();//skip title
                 var quest = new QuestInfo(tsvSr.ReadLine());
                 quest.writeBin(wdbBw);
@@ -612,12 +733,12 @@ namespace wdbconv
                 {
                     quest.init(tsvSr.ReadLine());
                     quest.writeBin(wdbBw);
-                }
+                }*/
                 ///padding end
-                wdbBw.Write(0);
-                wdbBw.Write(0);
 
-                tsvSr.Close();
+
+                wdbBw.Write(0);
+                wdbBw.Write(0);
                 wdbBw.Flush();
                 wdbBw.Close();
             }
@@ -625,5 +746,64 @@ namespace wdbconv
             wfs.Close();
             rfs.Close();
         }
+
+
+        static async Task<(string, string, string)> ParseStringFromUrl(Uri url)
+        {
+            var client = new HttpClient();
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 () AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36");
+
+            HtmlDocument pageDocument = new HtmlDocument();
+
+            try
+            {
+                var response = await client.GetAsync(url);
+                response.EnsureSuccessStatusCode();
+                var pageContents = await response.Content.ReadAsStringAsync();
+                pageDocument.LoadHtml(pageContents);
+            }
+            catch (Exception)
+            {
+                throw;
+            }
+
+            //name /html/body/div[3]/div[1]/div[1]/div[2]/div/h1
+            //engname //*[@id="cpname"]
+            //desp /html/body/div[3]/div[1]/div[1]/div[3]/ul/li[1]/div[1]
+            //detail /html/body/div[3]/div[1]/div[1]/div[3]/ul/li[2]/div
+            //desp title /html/body/div[3]/div[1]/div[1]/div[3]/ul/li[1]/h3
+
+            var nameNode = pageDocument.DocumentNode.SelectSingleNode("/html/body/div[3]/div[1]/div[1]/div[2]/div/h1");
+            var despTitle = pageDocument.DocumentNode.SelectSingleNode("/html/body/div[3]/div[1]/div[1]/div[3]/ul/li[1]/h3");
+            HtmlNode despNode, detailNode;
+
+            if (despTitle.InnerText == "任务需求")
+            {
+                despNode = pageDocument.DocumentNode.SelectSingleNode("/html/body/div[3]/div[1]/div[1]/div[3]/ul/li[1]/div[1]");
+                detailNode = pageDocument.DocumentNode.SelectSingleNode("/html/body/div[3]/div[1]/div[1]/div[3]/ul/li[2]/div");
+            }
+            else
+            {
+                despNode = pageDocument.DocumentNode.SelectSingleNode("/html/body/div[3]/div[1]/div[1]/div[3]/ul/li[2]/div[1]");
+                detailNode = pageDocument.DocumentNode.SelectSingleNode("/html/body/div[3]/div[1]/div[1]/div[3]/ul/li[3]/div");
+                Console.WriteLine("got {0}", despTitle.InnerText);
+                if (despNode != null)
+                {
+                    Console.WriteLine("desp {0}", despNode.InnerText);
+                    if (despNode.InnerText.Trim().Length == 0)
+                    {
+                        Console.WriteLine("got empty desp skip detail!");
+                        detailNode = null;
+                        despNode = null;
+                    }
+                }
+            }
+            return (
+                nameNode == null ? "" : nameNode.InnerText,
+                despNode == null ? "" : despNode.InnerText,
+                detailNode == null ? "" : detailNode.InnerHtml
+                );
+        }
+
     }
 }
